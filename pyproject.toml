@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "dspace-cliente"
+version = "0.1.0"
+description = "DSpace Rest Client for Python"
+authors = ["Vítor <vitor.silverio.rodrigues@gmail.com>"]
+readme = "README.md"
+packages = [{include = "dspace"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+httpx = "^0.24.1"
+pydantic = "^2.0.2"
+pyjwt = "^2.6.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
