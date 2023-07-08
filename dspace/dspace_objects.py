@@ -40,7 +40,7 @@ class DSpaceObject(BaseModel):
     handle: Optional[str]
     type: str
     metadata: dict[str, list[Metadata]]
-    links: dict[str, Link] = Field(alias="_links")
+    links: Optional[dict[str, Link | list[Link]]] = Field(alias="_links", default=None)
 
 
 class DSpaceCommunity(DSpaceObject):
