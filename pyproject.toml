@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "dspace-cliente"
+name = "dspace-client"
 version = "0.1.0"
 description = "DSpace Rest Client for Python"
 authors = ["Vítor <vitor.silverio.rodrigues@gmail.com>"]
