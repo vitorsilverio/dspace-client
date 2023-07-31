@@ -1,12 +1,14 @@
 import datetime
 import logging
+
 import tomllib
 import urllib.parse
 
 import jwt
 from httpx import Client, Response
 
-from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError
+from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceObject, DSpaceItem, \
+    DSpaceItemTemplate, DSpaceCollection
 
 handler = logging.StreamHandler()
 log = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ class DSpaceClient:
         self.client = Client()
         self.__update_client_info()
         self.api_info = self.api()
+        self.__error = None
 
     def login(self, username: str, password: str):
         response = self.client.post(urllib.parse.urljoin(self.base_url, "api/authn/login"), data={
@@ -57,9 +60,11 @@ class DSpaceClient:
         if response.status_code >= 400:
             error = DSpaceError(**response.json())
             log.error(error)
+            self.__error = error
             raise Exception(error.message)
         self.__save_xsrf_token(response)
         self.__refresh_token()
+        self.__error = None
 
     def api(self) -> DSpaceApiObject:
         response = self.client.get(urllib.parse.urljoin(self.base_url, "api"))
@@ -72,8 +77,42 @@ class DSpaceClient:
         self.__post_processing_response(response)
         return DSpaceResponsePage(**response.json())
 
+    def get_collections(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
+        response = self.client.get(urllib.parse.urljoin(self.base_url, "api/core/collections"),
+                                   params={"size": size, "page": page})
+        self.__post_processing_response(response)
+        return DSpaceResponsePage(**response.json())
+
+    def get_item_template(self, uuid: str) -> DSpaceItemTemplate:
+        response = self.client.get(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{uuid}"))
+        self.__post_processing_response(response)
+        return DSpaceItemTemplate(**response.json())
+
     def get_items(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
         response = self.client.get(urllib.parse.urljoin(self.base_url, "api/core/items"),
                                    params={"size": size, "page": page})
         self.__post_processing_response(response)
         return DSpaceResponsePage(**response.json())
+
+    def get_by_link(self, link: Link) -> DSpaceResponsePage|DSpaceObject:
+        response = self.client.get(link.href)
+        self.__post_processing_response(response)
+        try:
+            return DSpaceResponsePage(**response.json())
+        except:
+            return DSpaceObject(**response.json())
+
+    def create_item_template(self, item_template: DSpaceItemTemplate, collection: DSpaceCollection|str) -> DSpaceItemTemplate:
+        if isinstance(collection, DSpaceCollection):
+            collection = collection.uuid
+        response = self.client.post(urllib.parse.urljoin(self.base_url, f"api/core/collections/{collection}/itemtemplate"),
+                                   json=item_template.model_dump_json(exclude_none=True))
+        self.__post_processing_response(response)
+        return DSpaceItemTemplate(**response.json())
+
+    def delete_item_template(self, uuid: str) -> None:
+        response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{uuid}"))
+        self.__post_processing_response(response)
+
+    def get_last_execution_error(self) -> DSpaceError:
+        return self.__error
