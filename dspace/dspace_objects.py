@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
-
 
 class DSpaceError(BaseModel):
     timestamp: datetime
@@ -20,9 +20,20 @@ class Metadata(BaseModel):
     value: str
     language: Optional[str] = None
     authority: Optional[str] = None
-    confidence: int = -1
-    place: int = 0
+    confidence: Optional[int] = None
+    place: Optional[int] = None
 
+class PatchOperation(StrEnum):
+    ADD = "add"
+    MOVE = "move"
+    REMOVE = "remove"
+    REPLACE = "replace"
+
+class MetadataPatch(BaseModel):
+    op: PatchOperation
+    path: str
+    value: Optional[list[Metadata]|Metadata] = None
+    from_field: Optional[str] = Field(alias="from", default=None)
 
 class DSpaceApiObject(BaseModel):
     dspaceUI: str
@@ -36,7 +47,7 @@ class DSpaceApiObject(BaseModel):
 class DSpaceObject(BaseModel):
     type: str
     id: Optional[int | str] = None
-    metadata: dict[str, list[Metadata]]
+    metadata: Optional[dict[str, list[Metadata]]] = None
     uuid: Optional[str] = None
     name: Optional[str] = None
     handle: Optional[str] = None
@@ -75,6 +86,6 @@ class DSpacePageDetail(BaseModel):
 
 
 class DSpaceResponsePage(BaseModel):
-    embedded: DSpaceObjectList = Field(alias="_embedded")
+    embedded: Optional[DSpaceObjectList] = Field(alias="_embedded", default=None)
     links: dict[str, Link] = Field(alias="_links")
     page: DSpacePageDetail

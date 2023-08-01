@@ -8,7 +8,7 @@ import jwt
 from httpx import Client, Response
 
 from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceObject, DSpaceItem, \
-    DSpaceItemTemplate, DSpaceCollection
+    DSpaceItemTemplate, DSpaceCollection, MetadataPatch
 
 handler = logging.StreamHandler()
 log = logging.getLogger(__name__)
@@ -102,11 +102,17 @@ class DSpaceClient:
         except:
             return DSpaceObject(**response.json())
 
-    def create_item_template(self, item_template: DSpaceItemTemplate, collection: DSpaceCollection|str) -> DSpaceItemTemplate:
+    def create_item_template(self, collection: DSpaceCollection|str) -> DSpaceItemTemplate:
         if isinstance(collection, DSpaceCollection):
             collection = collection.uuid
         response = self.client.post(urllib.parse.urljoin(self.base_url, f"api/core/collections/{collection}/itemtemplate"),
-                                   json=item_template.model_dump_json(exclude_none=True))
+                                                         json={})
+        self.__post_processing_response(response)
+        return DSpaceItemTemplate(**response.json())
+
+    def update_item_template(self, item_template: DSpaceItemTemplate, metadata_patches: list[MetadataPatch]) -> DSpaceItemTemplate:
+        response = self.client.patch(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{item_template.uuid}"),
+                                    json=[patch.model_dump(exclude_none=True) for patch in metadata_patches])
         self.__post_processing_response(response)
         return DSpaceItemTemplate(**response.json())
 
