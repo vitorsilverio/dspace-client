@@ -1,13 +1,14 @@
 import datetime
 import logging
-
 import tomllib
 import urllib.parse
+from typing import TypeVar
 
 import jwt
 from httpx import Client, Response
+from pydantic import BaseModel
 
-from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceObject, DSpaceItem, \
+from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceObject, \
     DSpaceItemTemplate, DSpaceCollection, MetadataPatch
 
 handler = logging.StreamHandler()
@@ -15,6 +16,8 @@ log = logging.getLogger(__name__)
 formatter = logging.Formatter("%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
 handler.setFormatter(formatter)
 log.addHandler(handler)
+
+T = TypeVar("T")
 
 
 class DSpaceClient:
@@ -94,13 +97,11 @@ class DSpaceClient:
         self.__post_processing_response(response)
         return DSpaceResponsePage(**response.json())
 
-    def get_by_link(self, link: Link) -> DSpaceResponsePage|DSpaceObject:
+    def get_by_link(self, object_type: type[T], link: Link) -> T:
         response = self.client.get(link.href)
         self.__post_processing_response(response)
-        try:
-            return DSpaceResponsePage(**response.json())
-        except:
-            return DSpaceObject(**response.json())
+        return object_type(**response.json())
+
 
     def create_item_template(self, collection: DSpaceCollection|str) -> DSpaceItemTemplate:
         if isinstance(collection, DSpaceCollection):
