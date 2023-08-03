@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Optional
 from enum import StrEnum
+from typing import Optional
 
 from pydantic import BaseModel, Field
+
 
 class DSpaceError(BaseModel):
     timestamp: datetime
@@ -23,11 +24,13 @@ class Metadata(BaseModel):
     confidence: Optional[int] = None
     place: Optional[int] = None
 
+
 class PatchOperation(StrEnum):
     ADD = "add"
     MOVE = "move"
     REMOVE = "remove"
     REPLACE = "replace"
+
 
 class MetadataPatch(BaseModel):
     op: PatchOperation
@@ -68,14 +71,30 @@ class DSpaceItem(DSpaceObject):
     lastModified: Optional[datetime] = None
     entityType: Optional[str] = None
 
+
 class DSpaceItemTemplate(DSpaceObject):
     lastModified: Optional[datetime] = None
+
+
+class DSpaceEPersonGroup(DSpaceObject):
+    permanent: bool
+
+
+class DSpaceEPerson(DSpaceObject):
+    lastActive: datetime
+    canLogin: bool
+    email: str
+    requireCertificate: bool
+    selfRegistered: bool
+    netid: Optional[str] = None
 
 
 class DSpaceObjectList(BaseModel):
     communities: Optional[list[DSpaceCommunity]] = None
     collections: Optional[list[DSpaceCollection]] = None
     items: Optional[list[DSpaceItem]] = None
+    groups: Optional[list[DSpaceEPersonGroup]] = None
+    epersons: Optional[list[DSpaceEPerson]] = None
 
 
 class DSpacePageDetail(BaseModel):
@@ -89,3 +108,4 @@ class DSpaceResponsePage(BaseModel):
     embedded: Optional[DSpaceObjectList] = Field(alias="_embedded", default=None)
     links: dict[str, Link] = Field(alias="_links")
     page: DSpacePageDetail
+
