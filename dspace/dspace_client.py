@@ -6,10 +6,10 @@ from typing import TypeVar
 
 import jwt
 from httpx import Client, Response
-from pydantic import BaseModel
 
-from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceObject, \
-    DSpaceItemTemplate, DSpaceCollection, MetadataPatch
+from dspace.exceptions import DSpaceAuthenticationError, DSpaceSessionExpiredError, DSpaceApiError
+from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceItemTemplate, \
+    DSpaceCollection, MetadataPatch
 
 handler = logging.StreamHandler()
 log = logging.getLogger(__name__)
@@ -34,6 +34,8 @@ class DSpaceClient:
             "user": username,
             "password": password
         })
+        if response.status_code != 200:
+            raise DSpaceAuthenticationError()
         self.client.headers.update({"Authorization": response.headers.get("Authorization")})
         self.__post_processing_response(response)
 
@@ -54,7 +56,12 @@ class DSpaceClient:
             return
         jwt_token = jwt.decode(auth[len("Bearer "):], options={"verify_signature": False})
         exp = datetime.datetime.fromtimestamp(jwt_token["exp"])
-        if datetime.datetime.now() + datetime.timedelta(minutes=5) > exp:
+
+        now = datetime.datetime.now()
+        if now > exp:
+            log.error("Session Expired: Cannot refresh token")
+            raise DSpaceSessionExpiredError()
+        if now + datetime.timedelta(minutes=5) > exp:
             response = self.client.post(urllib.parse.urljoin(self.base_url, "api/authn/login"))
             self.client.headers.update({"Authorization": response.headers.get("Authorization")})
             self.__post_processing_response(response)
@@ -64,7 +71,7 @@ class DSpaceClient:
             error = DSpaceError(**response.json())
             log.error(error)
             self.__error = error
-            raise Exception(error.message)
+            raise DSpaceApiError(error)
         self.__save_xsrf_token(response)
         self.__refresh_token()
         self.__error = None
