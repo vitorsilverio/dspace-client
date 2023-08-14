@@ -6,6 +6,7 @@ from typing import TypeVar
 
 import jwt
 from httpx import Client, Response
+from pydantic import BaseModel
 
 from dspace.exceptions import DSpaceAuthenticationError, DSpaceSessionExpiredError, DSpaceApiError
 from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceItemTemplate, \
@@ -81,48 +82,69 @@ class DSpaceClient:
         self.__post_processing_response(response)
         return DSpaceApiObject(**response.json())
 
-    def get_communities(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, "api/core/communities"),
+    def __fetch_dspace_page(self, path: str, page: int = 0, size: int = 20) -> DSpaceResponsePage:
+        response = self.client.get(urllib.parse.urljoin(self.base_url, path),
                                    params={"size": size, "page": page})
         self.__post_processing_response(response)
         return DSpaceResponsePage(**response.json())
+
+    def __fetch_object(self, object_type: type[T], path: str) -> T:
+        response = self.client.get(urllib.parse.urljoin(self.base_url, path))
+        self.__post_processing_response(response)
+        return object_type(**response.json())
+
+    def __create_object(self, object_type: type[T], path: str, obj: BaseModel | None = None) -> T:
+        if obj:
+            object_json = obj.model_dump(exclude_none=True)
+        else:
+            object_json = {}
+        response = self.client.post(urllib.parse.urljoin(self.base_url, path),
+                                    json=object_json)
+        self.__post_processing_response(response)
+        return object_type(**response.json())
+
+    def __update_metadata(self, object_type: type[T], path: str, metadata_patches: list[MetadataPatch]) -> T:
+        response = self.client.patch(
+            urllib.parse.urljoin(self.base_url, path),
+            json=[patch.model_dump(exclude_none=True) for patch in metadata_patches])
+        self.__post_processing_response(response)
+        return object_type(**response.json())
+
+    def get_communities(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
+        return self.__fetch_dspace_page("api/core/communities", page, size)
 
     def get_collections(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, "api/core/collections"),
-                                   params={"size": size, "page": page})
-        self.__post_processing_response(response)
-        return DSpaceResponsePage(**response.json())
-
-    def get_item_template(self, uuid: str) -> DSpaceItemTemplate:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{uuid}"))
-        self.__post_processing_response(response)
-        return DSpaceItemTemplate(**response.json())
+        return self.__fetch_dspace_page("api/core/collections", page, size)
 
     def get_items(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, "api/core/items"),
-                                   params={"size": size, "page": page})
-        self.__post_processing_response(response)
-        return DSpaceResponsePage(**response.json())
+        return self.__fetch_dspace_page("api/core/items", page, size)
+
+    def get_eperson_groups(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
+        return self.__fetch_dspace_page("api/eperson/groups", page, size)
+
+    def get_epeople(self, page: int = 0, size: int = 20) -> DSpaceResponsePage:
+        return self.__fetch_dspace_page("/api/eperson/epersons", page, size)
+
+    def get_item_template(self, uuid: str) -> DSpaceItemTemplate:
+        return self.__fetch_object(DSpaceItemTemplate, f"api/core/itemtemplates/{uuid}")
 
     def get_by_link(self, object_type: type[T], link: Link) -> T:
         response = self.client.get(link.href)
         self.__post_processing_response(response)
         return object_type(**response.json())
 
-
-    def create_item_template(self, collection: DSpaceCollection|str) -> DSpaceItemTemplate:
+    def create_item_template(self, collection: DSpaceCollection | str) -> DSpaceItemTemplate:
         if isinstance(collection, DSpaceCollection):
             collection = collection.uuid
-        response = self.client.post(urllib.parse.urljoin(self.base_url, f"api/core/collections/{collection}/itemtemplate"),
-                                                         json={})
-        self.__post_processing_response(response)
-        return DSpaceItemTemplate(**response.json())
+        return self.__create_object(DSpaceItemTemplate, f"api/core/collections/{collection}/itemtemplate")
 
-    def update_item_template(self, item_template: DSpaceItemTemplate, metadata_patches: list[MetadataPatch]) -> DSpaceItemTemplate:
-        response = self.client.patch(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{item_template.uuid}"),
-                                    json=[patch.model_dump(exclude_none=True) for patch in metadata_patches])
-        self.__post_processing_response(response)
-        return DSpaceItemTemplate(**response.json())
+    def update_item_template(self, item_template: DSpaceItemTemplate,
+                             metadata_patches: list[MetadataPatch]) -> DSpaceItemTemplate:
+        return self.__update_metadata(DSpaceItemTemplate, f"api/core/itemtemplates/{item_template.uuid}",
+                                      metadata_patches)
+
+    def update_collection_metadata(self, collection: DSpaceCollection, metadata_patches: list[MetadataPatch]):
+        return self.__update_metadata(DSpaceCollection, f"api/core/collections/{collection.id}", metadata_patches)
 
     def delete_item_template(self, uuid: str) -> None:
         response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{uuid}"))
