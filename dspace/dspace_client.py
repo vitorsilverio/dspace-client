@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from dspace.exceptions import DSpaceAuthenticationError, DSpaceSessionExpiredError, DSpaceApiError
 from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceItemTemplate, \
-    DSpaceCollection, MetadataPatch, DSpaceEPersonGroup
+    DSpaceCollection, MetadataPatch, DSpaceEPersonGroup, EndpointGroup
 
 handler = logging.StreamHandler()
 log = logging.getLogger(__name__)
@@ -128,6 +128,9 @@ class DSpaceClient:
     def get_item_template(self, uuid: str) -> DSpaceItemTemplate:
         return self.__fetch_object(DSpaceItemTemplate, f"api/core/itemtemplates/{uuid}")
 
+    def get_group(self, uuid: str) -> DSpaceEPersonGroup:
+        return self.__fetch_object(DSpaceEPersonGroup, f"api/eperson/groups/{uuid}")
+
     def get_by_link(self, object_type: type[T], link: Link) -> T:
         response = self.client.get(link.href)
         self.__post_processing_response(response)
@@ -138,11 +141,11 @@ class DSpaceClient:
             collection = collection.uuid
         return self.__create_object(DSpaceItemTemplate, f"api/core/collections/{collection}/itemtemplate")
 
-    def create_collection_role(self, collection: DSpaceCollection | str, role_endpoint: str) -> DSpaceEPersonGroup:
+    def create_collection_role(self, collection: DSpaceCollection | str, role_endpoint: EndpointGroup) -> DSpaceEPersonGroup:
         if isinstance(collection, DSpaceCollection):
             collection = collection.uuid
         return self.__create_object(DSpaceEPersonGroup, f"api/core/collections/{collection}/{role_endpoint}")
-
+    
     def update_item_template(self, item_template: DSpaceItemTemplate,
                              metadata_patches: list[MetadataPatch]) -> DSpaceItemTemplate:
         return self.__update_metadata(DSpaceItemTemplate, f"api/core/itemtemplates/{item_template.uuid}",
@@ -151,9 +154,25 @@ class DSpaceClient:
     def update_collection_metadata(self, collection: DSpaceCollection, metadata_patches: list[MetadataPatch]):
         return self.__update_metadata(DSpaceCollection, f"api/core/collections/{collection.id}", metadata_patches)
 
-    def delete_item_template(self, uuid: str) -> None:
+    def delete_item_template(self, uuid: str):
         response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{uuid}"))
         self.__post_processing_response(response)
+        
+    def delete_group(self, uuid: str, role_endpoint: EndpointGroup, timeout: int=60):
+        response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/core/collections/{uuid}/{role_endpoint}"), timeout=timeout)
+        self.__post_processing_response(response)
+        return response.status_code == 204
+
+    def add_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str, timeout: int=60) -> bool:
+        if isinstance(group_parent, DSpaceEPersonGroup):
+            group_parent = group_parent.uuid
+        if isinstance(group_child, DSpaceEPersonGroup):
+            group_child = group_child.uuid
+        response = self.client.post(urllib.parse.urljoin(self.base_url, f"/api/eperson/groups/{group_parent}/subgroups"),
+                                    content=urllib.parse.urljoin(self.base_url, f"/api/eperson/groups/{group_child}").encode(),
+                                    timeout=timeout)
+        self.__post_processing_response(response)
+        return response.status_code == 204
 
     def get_last_execution_error(self) -> DSpaceError:
         return self.__error
