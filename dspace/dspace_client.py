@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from dspace.exceptions import DSpaceAuthenticationError, DSpaceSessionExpiredError, DSpaceApiError
 from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceItemTemplate, \
-    DSpaceCollection, MetadataPatch
+    DSpaceCollection, MetadataPatch, DSpaceEPersonGroup
 
 handler = logging.StreamHandler()
 log = logging.getLogger(__name__)
@@ -137,6 +137,11 @@ class DSpaceClient:
         if isinstance(collection, DSpaceCollection):
             collection = collection.uuid
         return self.__create_object(DSpaceItemTemplate, f"api/core/collections/{collection}/itemtemplate")
+
+    def create_collection_role(self, collection: DSpaceCollection | str, role_endpoint: str) -> DSpaceEPersonGroup:
+        if isinstance(collection, DSpaceCollection):
+            collection = collection.uuid
+        return self.__create_object(DSpaceEPersonGroup, f"api/core/collections/{collection}/{role_endpoint}")
 
     def update_item_template(self, item_template: DSpaceItemTemplate,
                              metadata_patches: list[MetadataPatch]) -> DSpaceItemTemplate:
