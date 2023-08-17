@@ -109,3 +109,12 @@ class DSpaceResponsePage(BaseModel):
     links: dict[str, Link] = Field(alias="_links")
     page: DSpacePageDetail
 
+class EndpointGroup(StrEnum):
+    ADMIN = "adminGroup"
+    SUBMITTERS = "submittersGroup"
+    ITEMREAD = "itemReadGroup"
+    BITSTREAMREAD = "bitstreamReadGroup"
+    VORKFLOW_REVIEWER = "workflowGroups/reviewer"
+    VORKFLOW_REVIEWMANAGERS = "workflowGroups/reviewmanagers"
+    VORKFLOW_EDITOR = "workflowGroups/editor"
+    VORKFLOW_FINALEDITOR = "workflowGroups/finaleditor"
