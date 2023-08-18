@@ -45,17 +45,20 @@ class DSpaceClient:
     def oidc_login(self, port: int = 8000):
         response = self.__client.get(urllib.parse.urljoin(self.__base_url, "api/authn/status"))
         if oauth_url := response.headers.get("www-authenticate", None):
-            oidc = OpenID_Connector(urllib.parse.urlparse(oauth_url), port = port)
+            oauth_url = oauth_url.split(",")[1][len("location=\"") + 1:-1]  # FIXME
+            oidc = OpenID_Connector(urllib.parse.urlparse(oauth_url), port=port)
             if code := oidc.login():
                 response = self.__client.get(urllib.parse.urljoin(self.__base_url, "api/authn/oidc"),
                                              params={"code": code})
+                if response.status_code >= 400:
+                    self.__error = DSpaceError(**response.json())
+                    raise DSpaceAuthenticationError(self.__error.message)
                 self.__client.headers.update({"Authorization": response.headers.get("Authorization")})
                 self.__post_processing_response(response)
             else:
                 raise DSpaceAuthenticationError("Failed")
         else:
             raise DSpaceAuthenticationError("Authentication method not supported")
-
 
     def __update_client_info(self):
         with open("pyproject.toml", "rb") as f:
