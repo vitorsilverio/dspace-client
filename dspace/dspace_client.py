@@ -23,36 +23,37 @@ T = TypeVar("T")
 
 class DSpaceClient:
 
-    def __init__(self, server: str):
-        self.base_url = server
-        self.client = Client()
+    def __init__(self, server: str, refresh_token_time: int=5):
+        self.__base_url = server
+        self.__client = Client()
         self.__update_client_info()
         self.api_info = self.api()
         self.__error = None
+        self.__refresh_token_time = refresh_token_time
 
     def login(self, username: str, password: str):
-        response = self.client.post(urllib.parse.urljoin(self.base_url, "api/authn/login"), data={
+        response = self.__client.post(urllib.parse.urljoin(self.__base_url, "api/authn/login"), data={
             "user": username,
             "password": password
         })
         if response.status_code != 200:
             raise DSpaceAuthenticationError()
-        self.client.headers.update({"Authorization": response.headers.get("Authorization")})
+        self.__client.headers.update({"Authorization": response.headers.get("Authorization")})
         self.__post_processing_response(response)
 
     def __update_client_info(self):
         with open("pyproject.toml", "rb") as f:
             toml = tomllib.load(f)
             project_info = toml["tool"]["poetry"]
-            self.client.headers.update({"User-Agent": f"{project_info['name']} {project_info['version']}"})
+            self.__client.headers.update({"User-Agent": f"{project_info['name']} {project_info['version']}"})
 
     def __save_xsrf_token(self, response: Response):
         xsrf_cookie = response.cookies.get("DSPACE-XSRF-COOKIE")
         if xsrf_cookie:
-            self.client.headers.update({"X-XSRF-TOKEN": xsrf_cookie})
+            self.__client.headers.update({"X-XSRF-TOKEN": xsrf_cookie})
 
     def __refresh_token(self):
-        auth = self.client.headers.get("Authorization")
+        auth = self.__client.headers.get("Authorization")
         if not auth:
             return
         jwt_token = jwt.decode(auth[len("Bearer "):], options={"verify_signature": False})
@@ -62,9 +63,9 @@ class DSpaceClient:
         if now > exp:
             log.error("Session Expired: Cannot refresh token")
             raise DSpaceSessionExpiredError()
-        if now + datetime.timedelta(minutes=5) > exp:
-            response = self.client.post(urllib.parse.urljoin(self.base_url, "api/authn/login"))
-            self.client.headers.update({"Authorization": response.headers.get("Authorization")})
+        if now + datetime.timedelta(minutes=self.__refresh_token_time) > exp:
+            response = self.__client.post(urllib.parse.urljoin(self.__base_url, "api/authn/login"))
+            self.__client.headers.update({"Authorization": response.headers.get("Authorization")})
             self.__post_processing_response(response)
 
     def __post_processing_response(self, response: Response):
@@ -78,18 +79,18 @@ class DSpaceClient:
         self.__error = None
 
     def api(self) -> DSpaceApiObject:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, "api"))
+        response = self.__client.get(urllib.parse.urljoin(self.__base_url, "api"))
         self.__post_processing_response(response)
         return DSpaceApiObject(**response.json())
 
     def __fetch_dspace_page(self, path: str, page: int = 0, size: int = 20) -> DSpaceResponsePage:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, path),
+        response = self.__client.get(urllib.parse.urljoin(self.__base_url, path),
                                    params={"size": size, "page": page})
         self.__post_processing_response(response)
         return DSpaceResponsePage(**response.json())
 
     def __fetch_object(self, object_type: type[T], path: str) -> T:
-        response = self.client.get(urllib.parse.urljoin(self.base_url, path))
+        response = self.__client.get(urllib.parse.urljoin(self.__base_url, path))
         self.__post_processing_response(response)
         return object_type(**response.json())
 
@@ -98,14 +99,14 @@ class DSpaceClient:
             object_json = obj.model_dump(exclude_none=True)
         else:
             object_json = {}
-        response = self.client.post(urllib.parse.urljoin(self.base_url, path),
+        response = self.__client.post(urllib.parse.urljoin(self.__base_url, path),
                                     json=object_json)
         self.__post_processing_response(response)
         return object_type(**response.json())
 
     def __update_metadata(self, object_type: type[T], path: str, metadata_patches: list[MetadataPatch]) -> T:
-        response = self.client.patch(
-            urllib.parse.urljoin(self.base_url, path),
+        response = self.__client.patch(
+            urllib.parse.urljoin(self.__base_url, path),
             json=[patch.model_dump(exclude_none=True) for patch in metadata_patches])
         self.__post_processing_response(response)
         return object_type(**response.json())
@@ -132,7 +133,7 @@ class DSpaceClient:
         return self.__fetch_object(DSpaceEPersonGroup, f"api/eperson/groups/{uuid}")
 
     def get_by_link(self, object_type: type[T], link: Link) -> T:
-        response = self.client.get(link.href)
+        response = self.__client.get(link.href)
         self.__post_processing_response(response)
         return object_type(**response.json())
 
@@ -155,11 +156,11 @@ class DSpaceClient:
         return self.__update_metadata(DSpaceCollection, f"api/core/collections/{collection.id}", metadata_patches)
 
     def delete_item_template(self, uuid: str):
-        response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/core/itemtemplates/{uuid}"))
+        response = self.__client.delete(urllib.parse.urljoin(self.__base_url, f"api/core/itemtemplates/{uuid}"))
         self.__post_processing_response(response)
         
     def delete_group(self, uuid: str, role_endpoint: EndpointGroup, timeout: int=60):
-        response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/core/collections/{uuid}/{role_endpoint}"), timeout=timeout)
+        response = self.__client.delete(urllib.parse.urljoin(self.__base_url, f"api/core/collections/{uuid}/{role_endpoint}"), timeout=timeout)
         self.__post_processing_response(response)
         return response.status_code == 204
 
@@ -168,11 +169,22 @@ class DSpaceClient:
             group_parent = group_parent.uuid
         if isinstance(group_child, DSpaceEPersonGroup):
             group_child = group_child.uuid
-        response = self.client.post(urllib.parse.urljoin(self.base_url, f"/api/eperson/groups/{group_parent}/subgroups"),
-                                    content=urllib.parse.urljoin(self.base_url, f"/api/eperson/groups/{group_child}").encode(),
+        response = self.__client.post(urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_parent}/subgroups"),
+                                    content=urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_child}").encode(),
                                     timeout=timeout)
         self.__post_processing_response(response)
         return response.status_code == 204
+    
+    def remove_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str, timeout: int=60) -> bool:
+        if isinstance(group_parent, DSpaceEPersonGroup):
+            group_parent = group_parent.uuid
+        if isinstance(group_child, DSpaceEPersonGroup):
+            group_child = group_child.uuid
+        response = self.__client.delete(urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_parent}/subgroups/{group_child}"),
+                                      timeout=timeout)
+        self.__post_processing_response(response)
+        return response.status_code == 204
+
 
     def get_last_execution_error(self) -> DSpaceError:
         return self.__error
