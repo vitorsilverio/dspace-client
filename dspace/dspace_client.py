@@ -168,11 +168,22 @@ class DSpaceClient:
             group_parent = group_parent.uuid
         if isinstance(group_child, DSpaceEPersonGroup):
             group_child = group_child.uuid
-        response = self.client.post(urllib.parse.urljoin(self.base_url, f"/api/eperson/groups/{group_parent}/subgroups"),
-                                    content=urllib.parse.urljoin(self.base_url, f"/api/eperson/groups/{group_child}").encode(),
+        response = self.client.post(urllib.parse.urljoin(self.base_url, f"api/eperson/groups/{group_parent}/subgroups"),
+                                    content=urllib.parse.urljoin(self.base_url, f"api/eperson/groups/{group_child}").encode(),
                                     timeout=timeout)
         self.__post_processing_response(response)
         return response.status_code == 204
+    
+    def remove_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str, timeout: int=60) -> bool:
+        if isinstance(group_parent, DSpaceEPersonGroup):
+            group_parent = group_parent.uuid
+        if isinstance(group_child, DSpaceEPersonGroup):
+            group_child = group_child.uuid
+        response = self.client.delete(urllib.parse.urljoin(self.base_url, f"api/eperson/groups/{group_parent}/subgroups/{group_child}"),
+                                      timeout=timeout)
+        self.__post_processing_response(response)
+        return response.status_code == 204
+
 
     def get_last_execution_error(self) -> DSpaceError:
         return self.__error
