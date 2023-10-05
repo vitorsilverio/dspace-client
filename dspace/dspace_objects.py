@@ -35,7 +35,7 @@ class PatchOperation(StrEnum):
 class MetadataPatch(BaseModel):
     op: PatchOperation
     path: str
-    value: Optional[list[Metadata]|Metadata] = None
+    value: Optional[list[Metadata]|Metadata|str] = None
     from_field: Optional[str] = Field(alias="from", default=None)
 
 class DSpaceApiObject(BaseModel):
@@ -78,8 +78,17 @@ class DSpaceItemTemplate(DSpaceObject):
 
 class DSpaceEPersonGroup(DSpaceObject):
     permanent: bool
+    
 
-
+class DSpaceResourcePolicy(DSpaceObject):
+    type: Optional[str] = None
+    policyType: Optional[str] = None
+    description: Optional[str] = None
+    action: Optional[str] = None
+    startDate: Optional[datetime] = None
+    endDate: Optional[datetime] = None
+        
+        
 class DSpaceEPerson(DSpaceObject):
     lastActive: datetime
     canLogin: bool
@@ -95,6 +104,8 @@ class DSpaceObjectList(BaseModel):
     items: Optional[list[DSpaceItem]] = None
     groups: Optional[list[DSpaceEPersonGroup]] = None
     epersons: Optional[list[DSpaceEPerson]] = None
+    bundles: Optional[list[DSpaceObject]] = None
+    resourcepolicies: Optional[list[DSpaceObject]] = None
 
 
 class DSpacePageDetail(BaseModel):
