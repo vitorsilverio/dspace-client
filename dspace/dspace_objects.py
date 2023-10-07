@@ -35,8 +35,9 @@ class PatchOperation(StrEnum):
 class MetadataPatch(BaseModel):
     op: PatchOperation
     path: str
-    value: Optional[list[Metadata]|Metadata|str] = None
+    value: Optional[list[Metadata] | Metadata | str] = None
     from_field: Optional[str] = Field(alias="from", default=None)
+
 
 class DSpaceApiObject(BaseModel):
     dspaceUI: str
@@ -60,6 +61,7 @@ class DSpaceObject(BaseModel):
 class DSpaceCommunity(DSpaceObject):
     archivedItemsCount: int
 
+
 class DSpaceCollection(DSpaceObject):
     archivedItemsCount: int
 
@@ -78,7 +80,7 @@ class DSpaceItemTemplate(DSpaceObject):
 
 class DSpaceEPersonGroup(DSpaceObject):
     permanent: bool
-    
+
 
 class DSpaceResourcePolicy(DSpaceObject):
     type: Optional[str] = None
@@ -87,8 +89,8 @@ class DSpaceResourcePolicy(DSpaceObject):
     action: Optional[str] = None
     startDate: Optional[datetime] = None
     endDate: Optional[datetime] = None
-        
-        
+
+
 class DSpaceEPerson(DSpaceObject):
     lastActive: datetime
     canLogin: bool
@@ -119,6 +121,7 @@ class DSpaceResponsePage(BaseModel):
     embedded: Optional[DSpaceObjectList] = Field(alias="_embedded", default=None)
     links: dict[str, Link] = Field(alias="_links")
     page: DSpacePageDetail
+
 
 class EndpointGroup(StrEnum):
     ADMIN = "adminGroup"
