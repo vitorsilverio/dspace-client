@@ -1,6 +1,6 @@
 DSpace rest client for v7 or above
 =====================================
-
+[![PyPI version](https://badge.fury.io/py/dspace-client.svg)](https://badge.fury.io/py/dspace-client)
 ## Using
 ```
 pip install dspace-client
