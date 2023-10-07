@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from dspace.exceptions import DSpaceAuthenticationError, DSpaceSessionExpiredError, DSpaceApiError
 from dspace.dspace_objects import DSpaceApiObject, DSpaceResponsePage, DSpaceError, Link, DSpaceItemTemplate, \
     DSpaceCollection, MetadataPatch, DSpaceEPersonGroup, EndpointGroup
-from dspace.oidc import OpenID_Connector
 
 handler = logging.StreamHandler()
 log = logging.getLogger(__name__)
@@ -24,9 +23,9 @@ T = TypeVar("T")
 
 class DSpaceClient:
 
-    def __init__(self, server: str, refresh_token_time: int = 5, timeout: int = 60):
+    def __init__(self, server: str, refresh_token_time: int=5):
         self.__base_url = server
-        self.__client = Client(timeout=timeout)
+        self.__client = Client()
         self.__update_client_info()
         self.api_info = self.api()
         self.__error = None
@@ -41,24 +40,6 @@ class DSpaceClient:
             raise DSpaceAuthenticationError()
         self.__client.headers.update({"Authorization": response.headers.get("Authorization")})
         self.__post_processing_response(response)
-
-    def oidc_login(self, port: int = 8000):
-        response = self.__client.get(urllib.parse.urljoin(self.__base_url, "api/authn/status"))
-        if oauth_url := response.headers.get("www-authenticate", None):
-            oauth_url = oauth_url.split(",")[1][len("location=\"") + 1:-1]  # FIXME
-            oidc = OpenID_Connector(urllib.parse.urlparse(oauth_url), port=port)
-            if code := oidc.login():
-                response = self.__client.get(urllib.parse.urljoin(self.__base_url, "api/authn/oidc"),
-                                             params={"code": code})
-                if response.status_code >= 400:
-                    self.__error = DSpaceError(**response.json())
-                    raise DSpaceAuthenticationError(self.__error.message)
-                self.__client.headers.update({"Authorization": response.headers.get("Authorization")})
-                self.__post_processing_response(response)
-            else:
-                raise DSpaceAuthenticationError("Failed")
-        else:
-            raise DSpaceAuthenticationError("Authentication method not supported")
 
     def __update_client_info(self):
         with open("pyproject.toml", "rb") as f:
@@ -104,7 +85,7 @@ class DSpaceClient:
 
     def __fetch_dspace_page(self, path: str, page: int = 0, size: int = 20) -> DSpaceResponsePage:
         response = self.__client.get(urllib.parse.urljoin(self.__base_url, path),
-                                     params={"size": size, "page": page})
+                                   params={"size": size, "page": page})
         self.__post_processing_response(response)
         return DSpaceResponsePage(**response.json())
 
@@ -119,7 +100,7 @@ class DSpaceClient:
         else:
             object_json = {}
         response = self.__client.post(urllib.parse.urljoin(self.__base_url, path),
-                                      json=object_json)
+                                    json=object_json)
         self.__post_processing_response(response)
         return object_type(**response.json())
 
@@ -161,12 +142,11 @@ class DSpaceClient:
             collection = collection.uuid
         return self.__create_object(DSpaceItemTemplate, f"api/core/collections/{collection}/itemtemplate")
 
-    def create_collection_role(self, collection: DSpaceCollection | str,
-                               role_endpoint: EndpointGroup) -> DSpaceEPersonGroup:
+    def create_collection_role(self, collection: DSpaceCollection | str, role_endpoint: EndpointGroup) -> DSpaceEPersonGroup:
         if isinstance(collection, DSpaceCollection):
             collection = collection.uuid
         return self.__create_object(DSpaceEPersonGroup, f"api/core/collections/{collection}/{role_endpoint}")
-
+    
     def update_item_template(self, item_template: DSpaceItemTemplate,
                              metadata_patches: list[MetadataPatch]) -> DSpaceItemTemplate:
         return self.__update_metadata(DSpaceItemTemplate, f"api/core/itemtemplates/{item_template.uuid}",
@@ -178,37 +158,33 @@ class DSpaceClient:
     def delete_item_template(self, uuid: str):
         response = self.__client.delete(urllib.parse.urljoin(self.__base_url, f"api/core/itemtemplates/{uuid}"))
         self.__post_processing_response(response)
-
-    def delete_group(self, uuid: str, role_endpoint: EndpointGroup, timeout: int = 60):
-        response = self.__client.delete(
-            urllib.parse.urljoin(self.__base_url, f"api/core/collections/{uuid}/{role_endpoint}"), timeout=timeout)
+        
+    def delete_group(self, uuid: str, role_endpoint: EndpointGroup, timeout: int=60):
+        response = self.__client.delete(urllib.parse.urljoin(self.__base_url, f"api/core/collections/{uuid}/{role_endpoint}"), timeout=timeout)
         self.__post_processing_response(response)
         return response.status_code == 204
 
-    def add_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str,
-                     timeout: int = 60) -> bool:
+    def add_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str, timeout: int=60) -> bool:
         if isinstance(group_parent, DSpaceEPersonGroup):
             group_parent = group_parent.uuid
         if isinstance(group_child, DSpaceEPersonGroup):
             group_child = group_child.uuid
-        response = self.__client.post(
-            urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_parent}/subgroups"),
-            content=urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_child}").encode(),
-            timeout=timeout)
+        response = self.__client.post(urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_parent}/subgroups"),
+                                    content=urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_child}").encode(),
+                                    timeout=timeout)
         self.__post_processing_response(response)
         return response.status_code == 204
-
-    def remove_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str,
-                        timeout: int = 60) -> bool:
+    
+    def remove_subgroup(self, group_parent: DSpaceEPersonGroup | str, group_child: DSpaceEPersonGroup | str, timeout: int=60) -> bool:
         if isinstance(group_parent, DSpaceEPersonGroup):
             group_parent = group_parent.uuid
         if isinstance(group_child, DSpaceEPersonGroup):
             group_child = group_child.uuid
-        response = self.__client.delete(
-            urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_parent}/subgroups/{group_child}"),
-            timeout=timeout)
+        response = self.__client.delete(urllib.parse.urljoin(self.__base_url, f"api/eperson/groups/{group_parent}/subgroups/{group_child}"),
+                                      timeout=timeout)
         self.__post_processing_response(response)
         return response.status_code == 204
+
 
     def get_last_execution_error(self) -> DSpaceError:
         return self.__error
